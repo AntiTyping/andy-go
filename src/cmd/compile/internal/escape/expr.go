@@ -59,6 +59,14 @@ func (e *escape) exprSkipInit(k hole, n ir.Node) {
 		n := n.(*ir.LogicalExpr)
 		e.discard(n.X)
 		e.discard(n.Y)
+	case ir.OPIPE:
+		// Pipe operator: slice |> func -> new slice
+		// Elements of input slice flow through the function.
+		// The function may be a closure capturing variables.
+		// The result is a new slice that contains the function results.
+		n := n.(*ir.BinaryExpr)
+		e.expr(k.note(n, "pipe input slice"), n.X)
+		e.expr(k.note(n, "pipe function"), n.Y)
 	case ir.OADDR:
 		n := n.(*ir.AddrExpr)
 		e.expr(k.addr(n, "address-of"), n.X) // "address-of"

@@ -277,6 +277,12 @@ redo:
 			s.tok = _Operator
 			break
 		}
+		if s.ch == '>' {
+			s.nextch()
+			s.op, s.prec = Pipe, precPipe
+			s.tok = _Operator
+			break
+		}
 		s.op, s.prec = Or, precAdd
 		goto assignop
 

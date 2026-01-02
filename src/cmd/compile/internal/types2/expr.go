@@ -613,6 +613,61 @@ Error:
 	x.mode = invalid
 }
 
+// pipe type checks the pipe operator: slice |> func(T) U
+// The result type is []U.
+func (check *Checker) pipe(x, y *operand, e syntax.Expr) {
+	// Avoid spurious errors if any of the operands has an invalid type.
+	if !isValid(x.typ) || !isValid(y.typ) {
+		x.mode = invalid
+		return
+	}
+
+	// Left operand must be a slice
+	sliceType, ok := coreType(x.typ).(*Slice)
+	if !ok {
+		check.errorf(x, InvalidPipe, invalidOp+"%s |> %s (left operand must be a slice, got %s)", x.expr, y.expr, x.typ)
+		x.mode = invalid
+		return
+	}
+
+	// Right operand must be a function
+	sig, ok := coreType(y.typ).(*Signature)
+	if !ok {
+		check.errorf(y, InvalidPipe, invalidOp+"%s |> %s (right operand must be a function, got %s)", x.expr, y.expr, y.typ)
+		x.mode = invalid
+		return
+	}
+
+	// Function must have exactly 1 parameter
+	if sig.Params().Len() != 1 {
+		check.errorf(y, InvalidPipe, invalidOp+"%s |> %s (function must have exactly 1 parameter, got %d)", x.expr, y.expr, sig.Params().Len())
+		x.mode = invalid
+		return
+	}
+
+	// Function must have exactly 1 result
+	if sig.Results().Len() != 1 {
+		check.errorf(y, InvalidPipe, invalidOp+"%s |> %s (function must have exactly 1 result, got %d)", x.expr, y.expr, sig.Results().Len())
+		x.mode = invalid
+		return
+	}
+
+	elemType := sliceType.Elem()
+	paramType := sig.Params().At(0).Type()
+	resultType := sig.Results().At(0).Type()
+
+	// Parameter type must match slice element type
+	if !Identical(elemType, paramType) {
+		check.errorf(y, InvalidPipe, invalidOp+"%s |> %s (cannot use func(%s) with []%s)", x.expr, y.expr, paramType, elemType)
+		x.mode = invalid
+		return
+	}
+
+	// Result type is []resultType
+	x.mode = value
+	x.typ = NewSlice(resultType)
+}
+
 // incomparableCause returns a more specific cause why typ is not comparable.
 // If there is no more specific cause, the result is "".
 func (check *Checker) incomparableCause(typ Type) string {
@@ -814,6 +869,11 @@ func (check *Checker) binary(x *operand, e syntax.Expr, lhs, rhs syntax.Expr, op
 
 	if isComparison(op) {
 		check.comparison(x, &y, op, false)
+		return
+	}
+
+	if op == syntax.Pipe {
+		check.pipe(x, &y, e)
 		return
 	}
 

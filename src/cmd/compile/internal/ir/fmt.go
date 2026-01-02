@@ -71,6 +71,7 @@ var OpNames = []string{
 	ONOT:              "!",
 	OOROR:             "||",
 	OOR:               "|",
+	OPIPE:             "|>",
 	OPANIC:            "panic",
 	OPLUS:             "+",
 	OPRINTLN:          "println",
@@ -262,6 +263,7 @@ var OpPrec = []int{
 	OSEND:             3,
 	OANDAND:           2,
 	OOROR:             1,
+	OPIPE:             0,
 
 	// Statements handled by stmtfmt
 	OAS:         -1,

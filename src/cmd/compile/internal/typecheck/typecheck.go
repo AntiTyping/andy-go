@@ -292,6 +292,11 @@ func typecheck1(n ir.Node, top int) ir.Node {
 		n.SetType(t)
 		return n
 
+	// pipe operator
+	case ir.OPIPE:
+		n := n.(*ir.BinaryExpr)
+		return tcPipe(n)
+
 	// shift operators
 	case ir.OLSH, ir.ORSH:
 		n := n.(*ir.BinaryExpr)

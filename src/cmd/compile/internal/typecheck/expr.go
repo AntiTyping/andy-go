@@ -914,3 +914,63 @@ func tcUnaryArith(n *ir.UnaryExpr) ir.Node {
 	n.SetType(t)
 	return n
 }
+
+// tcPipe typechecks the pipe operator: slice |> func(T) U
+// Returns the pipe expression with the result type set to []U.
+func tcPipe(n *ir.BinaryExpr) ir.Node {
+	n.X = Expr(n.X)
+	n.Y = Expr(n.Y)
+
+	l := n.X
+	r := n.Y
+
+	if l.Type() == nil || r.Type() == nil {
+		n.SetType(nil)
+		return n
+	}
+
+	// Left operand must be a slice
+	if !l.Type().IsSlice() {
+		base.Errorf("invalid operation: %v (left operand must be a slice, got %v)", n, l.Type())
+		n.SetType(nil)
+		return n
+	}
+
+	// Right operand must be a function
+	if r.Type().Kind() != types.TFUNC {
+		base.Errorf("invalid operation: %v (right operand must be a function, got %v)", n, r.Type())
+		n.SetType(nil)
+		return n
+	}
+
+	fn := r.Type()
+
+	// Function must have exactly 1 parameter
+	if fn.NumParams() != 1 {
+		base.Errorf("invalid operation: %v (function must have exactly 1 parameter, got %d)", n, fn.NumParams())
+		n.SetType(nil)
+		return n
+	}
+
+	// Function must have exactly 1 result
+	if fn.NumResults() != 1 {
+		base.Errorf("invalid operation: %v (function must have exactly 1 result, got %d)", n, fn.NumResults())
+		n.SetType(nil)
+		return n
+	}
+
+	elemType := l.Type().Elem()
+	paramType := fn.Param(0).Type
+	resultType := fn.Result(0).Type
+
+	// Parameter type must match slice element type
+	if !types.Identical(elemType, paramType) {
+		base.Errorf("invalid operation: %v (cannot use func(%v) with []%v)", n, paramType, elemType)
+		n.SetType(nil)
+		return n
+	}
+
+	// Result type is []resultType
+	n.SetType(types.NewSlice(resultType))
+	return n
+}

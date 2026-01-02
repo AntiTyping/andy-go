@@ -183,6 +183,10 @@ func walkExpr1(n ir.Node, init *ir.Nodes) ir.Node {
 		n := n.(*ir.LogicalExpr)
 		return walkLogical(n, init)
 
+	case ir.OPIPE:
+		n := n.(*ir.BinaryExpr)
+		return walkPipe(n, init)
+
 	case ir.OPRINT, ir.OPRINTLN:
 		return walkPrint(n.(*ir.CallExpr), init)
 

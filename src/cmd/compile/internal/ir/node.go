@@ -221,6 +221,7 @@ const (
 	OPLUS             // +X
 	ONEG              // -X
 	OOROR             // X || Y
+	OPIPE             // X |> Y (pipe/map operator)
 	OPANIC            // panic(X)
 	OPRINT            // print(List)
 	OPRINTLN          // println(List)

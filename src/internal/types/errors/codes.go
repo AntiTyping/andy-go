@@ -1482,4 +1482,13 @@ const (
 	// errors. The solution is to rebuild the application with a
 	// newer Go release.
 	TooNew
+
+	// InvalidPipe occurs when the pipe operator |> is used incorrectly.
+	// The left operand must be a slice, and the right operand must be
+	// a function with exactly one parameter matching the slice element type
+	// and exactly one result.
+	//
+	// Example:
+	//  var _ = 42 |> func(x int) int { return x * 2 }
+	InvalidPipe
 )

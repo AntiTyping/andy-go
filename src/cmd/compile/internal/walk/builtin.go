@@ -983,3 +983,99 @@ func isByteCount(n ir.Node) bool {
 func isChanLenCap(n ir.Node) bool {
 	return (n.Op() == ir.OLEN || n.Op() == ir.OCAP) && n.(*ir.UnaryExpr).X.Type().IsChan()
 }
+
+// walkPipe transforms: slice |> fn
+// Into:
+//
+//	init {
+//	  s := slice
+//	  f := fn
+//	  result := make([]U, len(s))
+//	  for i := 0; i < len(s); i++ {
+//	    result[i] = f(s[i])
+//	  }
+//	}
+//	result
+func walkPipe(n *ir.BinaryExpr, init *ir.Nodes) ir.Node {
+	n.X = walkExpr(n.X, init)
+	n.Y = walkExpr(n.Y, init)
+
+	slice := n.X
+	fn := n.Y
+	resultType := n.Type() // []U
+
+	// Create temp for slice to avoid multiple evaluation
+	s := typecheck.TempAt(base.Pos, ir.CurFunc, slice.Type())
+	as := ir.NewAssignStmt(base.Pos, s, slice)
+	init.Append(typecheck.Stmt(as))
+
+	// Create temp for function to avoid multiple evaluation
+	f := typecheck.TempAt(base.Pos, ir.CurFunc, fn.Type())
+	af := ir.NewAssignStmt(base.Pos, f, fn)
+	init.Append(typecheck.Stmt(af))
+
+	// Create result slice: result := make([]U, len(s))
+	result := typecheck.TempAt(base.Pos, ir.CurFunc, resultType)
+	lenExpr := ir.NewUnaryExpr(base.Pos, ir.OLEN, s)
+	lenExpr = typecheck.Expr(lenExpr).(*ir.UnaryExpr)
+	lenExpr = walkExpr(lenExpr, init).(*ir.UnaryExpr)
+	makeCall := ir.NewMakeExpr(base.Pos, ir.OMAKESLICE, nil, nil)
+	makeCall.SetType(resultType)
+	makeCall.Len = lenExpr
+	makeCall.Cap = lenExpr
+	makeCall.SetTypecheck(1)
+	walkedMake := walkExpr(makeCall, init)
+	ar := ir.NewAssignStmt(base.Pos, result, walkedMake)
+	init.Append(typecheck.Stmt(ar))
+
+	// Build the for loop: for i := 0; i < len(s); i++ { result[i] = f(s[i]) }
+	// Create index temp
+	i := typecheck.TempAt(base.Pos, ir.CurFunc, types.Types[types.TINT])
+	hn := typecheck.TempAt(base.Pos, ir.CurFunc, types.Types[types.TINT])
+
+	// Initialize loop variables
+	ai := ir.NewAssignStmt(base.Pos, i, ir.NewInt(base.Pos, 0))
+	init.Append(typecheck.Stmt(ai))
+
+	lenS := ir.NewUnaryExpr(base.Pos, ir.OLEN, s)
+	lenS = typecheck.Expr(lenS).(*ir.UnaryExpr)
+	lenS = walkExpr(lenS, init).(*ir.UnaryExpr)
+	aln := ir.NewAssignStmt(base.Pos, hn, lenS)
+	init.Append(typecheck.Stmt(aln))
+
+	// Build loop body: result[i] = f(s[i])
+	var body []ir.Node
+
+	// s[i]
+	srcIndex := ir.NewIndexExpr(base.Pos, s, i)
+	srcIndex.SetBounded(true)
+	srcIndex = typecheck.Expr(srcIndex).(*ir.IndexExpr)
+
+	// f(s[i])
+	call := ir.NewCallExpr(base.Pos, ir.OCALL, f, []ir.Node{srcIndex})
+	call = typecheck.Expr(call).(*ir.CallExpr)
+
+	// result[i]
+	dstIndex := ir.NewIndexExpr(base.Pos, result, i)
+	dstIndex.SetBounded(true)
+	dstIndex = typecheck.Expr(dstIndex).(*ir.IndexExpr)
+
+	// result[i] = f(s[i])
+	assign := ir.NewAssignStmt(base.Pos, dstIndex, call)
+	assign = typecheck.Stmt(assign).(*ir.AssignStmt)
+	body = append(body, assign)
+
+	// Build the for statement condition: i < hn
+	cond := ir.NewBinaryExpr(base.Pos, ir.OLT, i, hn)
+	cond = typecheck.Expr(cond).(*ir.BinaryExpr)
+
+	// Build the for statement post: i++
+	incr := ir.NewBinaryExpr(base.Pos, ir.OADD, i, ir.NewInt(base.Pos, 1))
+	post := ir.NewAssignStmt(base.Pos, i, incr)
+	post = typecheck.Stmt(post).(*ir.AssignStmt)
+
+	nfor := ir.NewForStmt(base.Pos, nil, cond, post, body, false)
+	appendWalkStmt(init, nfor)
+
+	return result
+}

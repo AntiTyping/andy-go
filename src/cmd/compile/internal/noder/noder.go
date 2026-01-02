@@ -123,6 +123,7 @@ var unOps = [...]ir.Op{
 }
 
 var binOps = [...]ir.Op{
+	syntax.Pipe:   ir.OPIPE,
 	syntax.OrOr:   ir.OOROR,
 	syntax.AndAnd: ir.OANDAND,
 

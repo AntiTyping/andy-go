@@ -1978,6 +1978,14 @@ func (w *writer) expr(expr syntax.Expr) {
 		switch expr.Op {
 		case syntax.Shl, syntax.Shr:
 			// ok: operands are allowed to have different types
+		case syntax.Pipe:
+			// Pipe operator: left is slice, right is function - no common type
+			w.Code(exprBinaryOp)
+			w.op(binOps[expr.Op])
+			w.expr(expr.X)
+			w.pos(expr)
+			w.expr(expr.Y)
+			break
 		default:
 			xtyp := w.p.typeOf(expr.X)
 			ytyp := w.p.typeOf(expr.Y)
@@ -1989,6 +1997,10 @@ func (w *writer) expr(expr syntax.Expr) {
 			default:
 				w.p.fatalf(expr, "failed to find common type between %v and %v", xtyp, ytyp)
 			}
+		}
+
+		if expr.Op == syntax.Pipe {
+			break // already handled above
 		}
 
 		w.Code(exprBinaryOp)
