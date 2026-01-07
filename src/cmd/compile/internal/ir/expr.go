@@ -181,6 +181,22 @@ func (n *BinaryExpr) SetOp(op Op) {
 	}
 }
 
+// A PipeExpr represents a pipe/map expression X |> Y
+// where X is a slice []T and Y is a function func(T) U.
+// The result type is []U.
+type PipeExpr struct {
+	miniExpr
+	X Node // slice expression
+	Y Node // function expression
+}
+
+func NewPipeExpr(pos src.XPos, x, y Node) *PipeExpr {
+	n := &PipeExpr{X: x, Y: y}
+	n.pos = pos
+	n.op = OPIPE
+	return n
+}
+
 // A CallExpr is a function call Fun(Args).
 type CallExpr struct {
 	miniExpr

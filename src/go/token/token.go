@@ -78,6 +78,7 @@ const (
 	GEQ      // >=
 	DEFINE   // :=
 	ELLIPSIS // ...
+	PIPE     // |>
 
 	LPAREN // (
 	LBRACK // [
@@ -187,6 +188,7 @@ var tokens = [...]string{
 	GEQ:      ">=",
 	DEFINE:   ":=",
 	ELLIPSIS: "...",
+	PIPE:     "|>",
 
 	LPAREN: "(",
 	LBRACK: "[",
@@ -256,8 +258,8 @@ func (tok Token) String() string {
 // indexing, and other operator and delimiter tokens.
 const (
 	LowestPrec  = 0 // non-operators
-	UnaryPrec   = 6
-	HighestPrec = 7
+	UnaryPrec   = 7
+	HighestPrec = 8
 )
 
 // Precedence returns the operator precedence of the binary
@@ -265,16 +267,18 @@ const (
 // is LowestPrecedence.
 func (op Token) Precedence() int {
 	switch op {
-	case LOR:
+	case PIPE:
 		return 1
-	case LAND:
+	case LOR:
 		return 2
-	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
+	case LAND:
 		return 3
-	case ADD, SUB, OR, XOR:
+	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
 		return 4
-	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
+	case ADD, SUB, OR, XOR:
 		return 5
+	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
+		return 6
 	}
 	return LowestPrec
 }

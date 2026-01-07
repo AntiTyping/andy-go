@@ -141,6 +141,10 @@ func walkExpr1(n ir.Node, init *ir.Nodes) ir.Node {
 		}
 		return n
 
+	case ir.OPIPE:
+		n := n.(*ir.PipeExpr)
+		return walkPipe(n, init)
+
 	case ir.OUNSAFESLICE:
 		n := n.(*ir.BinaryExpr)
 		return walkUnsafeSlice(n, init)
@@ -1139,4 +1143,79 @@ func usefield(n *ir.SelectorExpr) {
 		ir.CurFunc.FieldTrack = make(map[*obj.LSym]struct{})
 	}
 	ir.CurFunc.FieldTrack[sym] = struct{}{}
+}
+
+// walkPipe transforms a pipe expression slice |> f into a loop:
+//
+//	sliceVar := slice
+//	resultVar := make([]U, len(sliceVar))
+//	for i, v := range sliceVar {
+//	    resultVar[i] = f(v)
+//	}
+//	// expression value is resultVar
+func walkPipe(n *ir.PipeExpr, init *ir.Nodes) ir.Node {
+	pos := n.Pos()
+
+	// Get types
+	sliceType := n.X.Type()
+	resultType := n.Type() // []U, already computed by type checker
+	elemType := sliceType.Elem()
+	resultElemType := resultType.Elem()
+
+	// Walk operands
+	slice := walkExpr(n.X, init)
+	fn := walkExpr(n.Y, init)
+
+	// Create temp for input slice to avoid re-evaluation
+	sliceVar := typecheck.TempAt(pos, ir.CurFunc, sliceType)
+	as1 := ir.NewAssignStmt(pos, sliceVar, slice)
+	as1.SetTypecheck(1)
+	init.Append(as1)
+
+	// Create temp for result slice
+	resultVar := typecheck.TempAt(pos, ir.CurFunc, resultType)
+
+	// resultVar = make([]U, len(sliceVar))
+	lenCall := ir.NewUnaryExpr(pos, ir.OLEN, sliceVar)
+	lenCall.SetType(types.Types[types.TINT])
+	lenCall.SetTypecheck(1)
+
+	makeCall := ir.NewMakeExpr(pos, ir.OMAKESLICE, lenCall, nil)
+	makeCall.SetType(resultType)
+	makeCall.SetTypecheck(1)
+
+	// Walk the make expression to transform it
+	walkedMake := walkMakeSlice(makeCall, init)
+
+	as2 := ir.NewAssignStmt(pos, resultVar, walkedMake)
+	as2.SetTypecheck(1)
+	init.Append(as2)
+
+	// Create index and element temps for the loop
+	indexVar := typecheck.TempAt(pos, ir.CurFunc, types.Types[types.TINT])
+	elemVar := typecheck.TempAt(pos, ir.CurFunc, elemType)
+
+	// Build loop body: resultVar[indexVar] = f(elemVar)
+	indexExpr := ir.NewIndexExpr(pos, resultVar, indexVar)
+	indexExpr.SetType(resultElemType)
+	indexExpr.SetTypecheck(1)
+	indexExpr.SetBounded(true) // We know the index is in bounds
+
+	callExpr := ir.NewCallExpr(pos, ir.OCALLFUNC, fn, []ir.Node{elemVar})
+	callExpr.SetType(resultElemType)
+	callExpr.SetTypecheck(1)
+
+	assignStmt := ir.NewAssignStmt(pos, indexExpr, callExpr)
+	assignStmt.SetTypecheck(1)
+
+	// Build the range statement
+	rangeStmt := ir.NewRangeStmt(pos, indexVar, elemVar, sliceVar, []ir.Node{assignStmt}, false)
+	rangeStmt.SetTypecheck(1)
+
+	// Walk the range statement (transforms to for loop) and append the result
+	walkedRange := walkStmt(rangeStmt)
+	init.Append(walkedRange)
+
+	// Return resultVar as the expression value
+	return resultVar
 }

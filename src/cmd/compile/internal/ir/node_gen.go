@@ -248,6 +248,55 @@ func (n *BinaryExpr) editChildrenWithHidden(edit func(Node) Node) {
 	}
 }
 
+func (n *PipeExpr) Format(s fmt.State, verb rune) { fmtNode(n, s, verb) }
+func (n *PipeExpr) copy() Node {
+	c := *n
+	c.init = copyNodes(c.init)
+	return &c
+}
+func (n *PipeExpr) doChildren(do func(Node) bool) bool {
+	if doNodes(n.init, do) {
+		return true
+	}
+	if n.X != nil && do(n.X) {
+		return true
+	}
+	if n.Y != nil && do(n.Y) {
+		return true
+	}
+	return false
+}
+func (n *PipeExpr) doChildrenWithHidden(do func(Node) bool) bool {
+	if doNodes(n.init, do) {
+		return true
+	}
+	if n.X != nil && do(n.X) {
+		return true
+	}
+	if n.Y != nil && do(n.Y) {
+		return true
+	}
+	return false
+}
+func (n *PipeExpr) editChildren(edit func(Node) Node) {
+	editNodes(n.init, edit)
+	if n.X != nil {
+		n.X = edit(n.X).(Node)
+	}
+	if n.Y != nil {
+		n.Y = edit(n.Y).(Node)
+	}
+}
+func (n *PipeExpr) editChildrenWithHidden(edit func(Node) Node) {
+	editNodes(n.init, edit)
+	if n.X != nil {
+		n.X = edit(n.X).(Node)
+	}
+	if n.Y != nil {
+		n.Y = edit(n.Y).(Node)
+	}
+}
+
 func (n *BlockStmt) Format(s fmt.State, verb rune) { fmtNode(n, s, verb) }
 func (n *BlockStmt) copy() Node {
 	c := *n

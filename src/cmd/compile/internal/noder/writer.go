@@ -1974,6 +1974,15 @@ func (w *writer) expr(expr syntax.Expr) {
 			break
 		}
 
+		// Handle pipe operator specially
+		if expr.Op == syntax.Pipe {
+			w.Code(exprPipe)
+			w.pos(expr)
+			w.expr(expr.X)
+			w.expr(expr.Y)
+			break
+		}
+
 		var commonType types2.Type
 		switch expr.Op {
 		case syntax.Shl, syntax.Shr:
