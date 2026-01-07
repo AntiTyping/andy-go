@@ -292,6 +292,35 @@ func typecheck1(n ir.Node, top int) ir.Node {
 		n.SetType(t)
 		return n
 
+	// pipe operator
+	case ir.OPIPE:
+		n := n.(*ir.PipeExpr)
+		n.X, n.Y = Expr(n.X), Expr(n.Y)
+		if n.X.Type() == nil || n.Y.Type() == nil {
+			n.SetType(nil)
+			return n
+		}
+		// Compute result type: []U where U is the function's result type
+		funcType := n.Y.Type()
+		if funcType.IsFuncArgStruct() {
+			// Handle function values
+			funcType = funcType.Underlying()
+		}
+		if funcType.Kind() != types.TFUNC {
+			base.Errorf("pipe operator requires function, got %v", funcType)
+			n.SetType(nil)
+			return n
+		}
+		results := funcType.Results()
+		if len(results) != 1 {
+			base.Errorf("pipe function must have exactly 1 result")
+			n.SetType(nil)
+			return n
+		}
+		resultElemType := results[0].Type
+		n.SetType(types.NewSlice(resultElemType))
+		return n
+
 	// shift operators
 	case ir.OLSH, ir.ORSH:
 		n := n.(*ir.BinaryExpr)

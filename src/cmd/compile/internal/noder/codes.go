@@ -51,6 +51,7 @@ const (
 	exprAssert
 	exprUnaryOp
 	exprBinaryOp
+	exprPipe
 	exprCall
 	exprConvert
 	exprNew

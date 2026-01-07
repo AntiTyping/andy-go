@@ -960,7 +960,12 @@ scanAgain:
 				tok = s.switch3(token.AND, token.AND_ASSIGN, '&', token.LAND)
 			}
 		case '|':
-			tok = s.switch3(token.OR, token.OR_ASSIGN, '|', token.LOR)
+			if s.ch == '>' {
+				s.next()
+				tok = token.PIPE
+			} else {
+				tok = s.switch3(token.OR, token.OR_ASSIGN, '|', token.LOR)
+			}
 		case '~':
 			tok = token.TILDE
 		default:

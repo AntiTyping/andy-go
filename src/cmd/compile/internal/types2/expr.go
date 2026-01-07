@@ -878,6 +878,70 @@ func (check *Checker) binary(x *operand, e syntax.Expr, lhs, rhs syntax.Expr, op
 	// x.typ is unchanged
 }
 
+// pipe type-checks a pipe expression: slice |> func.
+// The result type is []U where func has signature func(T) U.
+func (check *Checker) pipe(x *operand, e syntax.Expr, lhs, rhs syntax.Expr) {
+	var y operand
+
+	check.expr(nil, x, lhs)
+	check.expr(nil, &y, rhs)
+
+	if x.mode == invalid {
+		return
+	}
+	if y.mode == invalid {
+		x.mode = invalid
+		x.expr = y.expr
+		return
+	}
+
+	// Validate left operand is a slice
+	sliceType, ok := Unalias(x.typ).Underlying().(*Slice)
+	if !ok {
+		check.errorf(x, UndefinedOp, invalidOp+"operator |> not defined on %s (left operand must be a slice)", x.typ)
+		x.mode = invalid
+		return
+	}
+	elemType := sliceType.Elem()
+
+	// Validate right operand is a function with signature func(T) U
+	sig, ok := Unalias(y.typ).Underlying().(*Signature)
+	if !ok {
+		check.errorf(&y, UndefinedOp, invalidOp+"operator |> requires a function (got %s)", y.typ)
+		x.mode = invalid
+		return
+	}
+
+	// Check function has exactly 1 parameter and 1 result
+	params := sig.Params()
+	results := sig.Results()
+	if params.Len() != 1 {
+		check.errorf(&y, UndefinedOp, invalidOp+"pipe function must have exactly 1 parameter (got %d)", params.Len())
+		x.mode = invalid
+		return
+	}
+	if results.Len() != 1 {
+		check.errorf(&y, UndefinedOp, invalidOp+"pipe function must have exactly 1 result (got %d)", results.Len())
+		x.mode = invalid
+		return
+	}
+
+	// Check element type is assignable to parameter type
+	paramType := params.At(0).Type()
+	if !AssignableTo(elemType, paramType) {
+		check.errorf(x, MismatchedTypes, invalidOp+"cannot pipe %s to %s (slice element type %s not assignable to parameter type %s)",
+			x.typ, y.typ, elemType, paramType)
+		x.mode = invalid
+		return
+	}
+
+	// Result is []U where U is the function's result type
+	resultElemType := results.At(0).Type()
+	x.typ = NewSlice(resultElemType)
+	x.mode = value
+	x.expr = e
+}
+
 // matchTypes attempts to convert any untyped types x and y such that they match.
 // If an error occurs, x.mode is set to invalid.
 func (check *Checker) matchTypes(x, y *operand) {
@@ -1225,7 +1289,11 @@ func (check *Checker) exprInternal(T *target, x *operand, e syntax.Expr, hint Ty
 		}
 
 		// binary expression
-		check.binary(x, e, e.X, e.Y, e.Op)
+		if e.Op == syntax.Pipe {
+			check.pipe(x, e, e.X, e.Y)
+		} else {
+			check.binary(x, e, e.X, e.Y, e.Op)
+		}
 		if x.mode == invalid {
 			goto Error
 		}

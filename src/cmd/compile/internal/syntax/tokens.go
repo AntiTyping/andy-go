@@ -118,6 +118,9 @@ const (
 	Recv  // <-
 	Tilde // ~
 
+	// precPipe
+	Pipe // |>
+
 	// precOrOr
 	OrOr // ||
 
@@ -151,6 +154,7 @@ const (
 // Operator precedences
 const (
 	_ = iota
+	precPipe
 	precOrOr
 	precAndAnd
 	precCmp

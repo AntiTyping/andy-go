@@ -152,6 +152,14 @@ func (e *escape) exprSkipInit(k hole, n ir.Node) {
 		e.spill(k, n)
 		e.discard(n.Len)
 		e.discard(n.Cap)
+	case ir.OPIPE:
+		// Pipe operator creates a new slice by applying a function to each element.
+		// Conservative: the result slice escapes like OMAKESLICE,
+		// and input slice elements flow to heap via the function call.
+		n := n.(*ir.PipeExpr)
+		e.spill(k, n)
+		e.expr(e.heapHole(), n.X) // input slice may escape
+		e.discard(n.Y)            // function value
 	case ir.OMAKECHAN:
 		n := n.(*ir.MakeExpr)
 		e.discard(n.Len)
