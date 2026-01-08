@@ -1,0 +1,9 @@
+services:
+  go-dev:
+    build: .
+    image: go-dev
+    volumes:
+      - .:/go-dev
+    working_dir: /go-dev
+    stdin_open: true
+    tty: true

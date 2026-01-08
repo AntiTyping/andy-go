@@ -1,0 +1,14 @@
+# Ignore build artifacts
+bin/
+pkg/bootstrap/
+pkg/obj/
+pkg/tool/
+
+# Ignore IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore Claude config
+.claude/
